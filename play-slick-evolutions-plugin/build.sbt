@@ -1,6 +1,6 @@
 sbtPlugin := true
 
-name := "play-slick-plugin"
+name := "play-slick-evolutions-plugin"
 
 organization := "com.papauschek"
 
