@@ -9,4 +9,4 @@ addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.2.1")
 
 lazy val root = project.in(file(".")).dependsOn(playSlickPlugin)
 
-lazy val playSlickPlugin = file("D:/Repository/play-slick-plugin")
+lazy val playSlickPlugin = file("D:/Repository/play-slick-plugin/play-slick-evolutions-plugin")

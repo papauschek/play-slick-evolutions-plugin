@@ -1,5 +1,6 @@
 import java.io.File
 import play.api._
+import play.api.db.BoneCPPlugin
 import play.api.db.evolutions.Evolutions
 import play.api.Application
 import scala.slick.model.codegen.SourceCodeGenerator
@@ -23,11 +24,12 @@ object PlaySlickCodeGenerator{
       run(outputDir)
     }
     catch {
+      case ex: PlayException => throw ex
       case ex: Throwable =>
-        throw new PlayException("Could not generate code", ex.getMessage)
+        throw new PlayException("Could not generate code", ex.getMessage, ex)
     }
     finally {
-      Play.stop()
+      //Play.stop()
     }
   }
 
@@ -36,25 +38,24 @@ object PlaySlickCodeGenerator{
     // start fake application using in-memory database
     implicit val app = FakeApplication(
       path = new File("dbgen").getCanonicalFile,
-      classloader = Thread.currentThread().getContextClassLoader)
+      //classloader = Thread.currentThread().getContextClassLoader,
+      additionalConfiguration = Map(
+        "db.default.url" -> "jdbc:h2:mem:test;MODE=MySQL",
+        "db.default.driver" -> "org.h2.Driver"))
 
-    Play.start(app)
+    //Play.start(app)
 
     // read database configuration
-    val databaseNames = app.configuration.getConfig("db").toSeq.flatMap(_.subKeys)
-    val databaseName = databaseNames.headOption.getOrElse("")
-    val outputPackage = app.configuration.getString(s"db.$databaseName.outputPackage").getOrElse("")
-    val outputProfile = app.configuration.getString(s"db.$databaseName.outputProfile").getOrElse("")
-
-    if (databaseName.length == 0)
-      throw new IllegalArgumentException("No database name found in configuration")
-    else if (outputPackage.length == 0)
-      throw new IllegalArgumentException("No outputPackage found in configuration")
-    else if (outputProfile.length == 0)
-      throw new IllegalArgumentException("No outputProfile found in configuration")
+    //val databaseNames = app.configuration.getConfig("db").toSeq.flatMap(_.subKeys)
+    val databaseName = "default" //databaseNames.headOption.getOrElse("")
+    val outputPackage = "db" //app.configuration.getString(s"db.$databaseName.outputPackage").getOrElse("")
+    val outputProfile = "scala.slick.driver.MySQLDriver" //app.configuration.getString(s"db.$databaseName.outputProfile").getOrElse("")
 
     // apply evolutions from main project
-    Evolutions.applyFor(databaseName)
+    val dbPlugin = new BoneCPPlugin(app)
+    //Evolutions.applyFor(databaseName)
+    val script = Evolutions.evolutionScript(dbPlugin.api, new File("."), dbPlugin.getClass.getClassLoader, databaseName)
+    Evolutions.applyScript(dbPlugin.api, databaseName, script)
 
     // get list of tables for which code will be generated
     // also, we exclude the play evolutions table
@@ -76,7 +77,10 @@ object PlaySlickCodeGenerator{
       container = "Tables",
       fileName = "Tables.scala")
 
-    Play.stop()
+
+    dbPlugin.onStop()
+
+    //Play.stop()
   }
 
 }
@@ -85,7 +89,7 @@ object PlaySlickCodeGenerator{
 case class FakeApplication(
                             override val path: java.io.File = new java.io.File("."),
                             override val classloader : ClassLoader = classOf[FakeApplication].getClassLoader,
-                            val additionalConfiguration: Map[String, _ <: Any] = Map.empty) extends {
+                            val additionalConfiguration: Map[String, _ <: Any]) extends {
   override val sources = None
   override val mode = play.api.Mode.Test
 } with Application with WithDefaultConfiguration with WithDefaultGlobal with WithDefaultPlugins {
