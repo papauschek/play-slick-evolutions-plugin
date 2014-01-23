@@ -89,7 +89,7 @@ case class FakeApplication(
                             override val classloader : ClassLoader = classOf[FakeApplication].getClassLoader,
                             val additionalConfiguration: Map[String, _ <: Any]) extends {
   override val sources = None
-  override val mode = play.api.Mode.Test
+  override val mode = play.api.Mode.Dev
 } with Application with WithDefaultConfiguration with WithDefaultGlobal with WithDefaultPlugins {
 
   override def configuration =
