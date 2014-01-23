@@ -24,12 +24,10 @@ object PlaySlickCodeGenerator{
       run(outputDir)
     }
     catch {
-      case ex: PlayException => throw ex
+      case ex: PlayException =>
+        throw ex
       case ex: Throwable =>
         throw new PlayException("Could not generate code", ex.getMessage, ex)
-    }
-    finally {
-      //Play.stop()
     }
   }
 
@@ -38,49 +36,49 @@ object PlaySlickCodeGenerator{
     // start fake application using in-memory database
     implicit val app = FakeApplication(
       path = new File("dbgen").getCanonicalFile,
-      //classloader = Thread.currentThread().getContextClassLoader,
       additionalConfiguration = Map(
         "db.default.url" -> "jdbc:h2:mem:test;MODE=MySQL",
         "db.default.driver" -> "org.h2.Driver"))
 
-    //Play.start(app)
-
     // read database configuration
-    //val databaseNames = app.configuration.getConfig("db").toSeq.flatMap(_.subKeys)
     val databaseName = "default" //databaseNames.headOption.getOrElse("")
     val outputPackage = "db" //app.configuration.getString(s"db.$databaseName.outputPackage").getOrElse("")
     val outputProfile = "scala.slick.driver.MySQLDriver" //app.configuration.getString(s"db.$databaseName.outputProfile").getOrElse("")
 
     // apply evolutions from main project
     val dbPlugin = new BoneCPPlugin(app)
-    //Evolutions.applyFor(databaseName)
-    val script = Evolutions.evolutionScript(dbPlugin.api, new File("."), dbPlugin.getClass.getClassLoader, databaseName)
-    Evolutions.applyScript(dbPlugin.api, databaseName, script)
+    try
+    {
 
-    // get list of tables for which code will be generated
-    // also, we exclude the play evolutions table
-    val db = Database.forDataSource(play.api.db.DB.getDataSource(databaseName))
-    val excludedTables = Seq("play_evolutions")
-    val model = db.withSession {
-      implicit session =>
-        val tables = H2Driver.getTables.list.filterNot(t => excludedTables contains t.name.name)
-        createModel( tables, H2Driver )
+      //Evolutions.applyFor(databaseName)
+      val script = Evolutions.evolutionScript(dbPlugin.api, new File("."), dbPlugin.getClass.getClassLoader, databaseName)
+      Evolutions.applyScript(dbPlugin.api, databaseName, script)
+
+      // get list of tables for which code will be generated
+      // also, we exclude the play evolutions table
+      val db = Database.forDataSource(play.api.db.DB.getDataSource(databaseName))
+      val excludedTables = Seq("play_evolutions")
+      val model = db.withSession {
+        implicit session =>
+          val tables = H2Driver.getTables.list.filterNot(t => excludedTables contains t.name.name)
+          createModel( tables, H2Driver )
+      }
+
+      // generate slick db code
+      val codegen = new SourceCodeGenerator(model)
+      codegen.writeToFile(
+        profile = outputProfile,
+        folder = outputDir,
+        pkg = outputPackage,
+        container = "Tables",
+        fileName = "Tables.scala")
+
+    }
+    finally
+    {
+      dbPlugin.onStop()
     }
 
-    // generate slick db code
-    val codegen = new SourceCodeGenerator(model)
-    println("test")
-    codegen.writeToFile(
-      profile = outputProfile,
-      folder = outputDir,
-      pkg = outputPackage,
-      container = "Tables",
-      fileName = "Tables.scala")
-
-
-    dbPlugin.onStop()
-
-    //Play.stop()
   }
 
 }

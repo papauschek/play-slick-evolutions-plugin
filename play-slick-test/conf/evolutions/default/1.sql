@@ -12,7 +12,7 @@ CREATE TABLE User (
     PRIMARY KEY (id)
 );
 
-INSERT INTO User (email, password, fullname, isAdmin) VALUES ('asdf@asdf.com', 'pw', 'name', true);
+INSERT INTO User (email, password, fullname, isAdmin) VALUES ('asdf@asdf.com', 'pw', 'name2', true);
  
 # --- !Downs
  
