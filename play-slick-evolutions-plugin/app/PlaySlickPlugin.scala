@@ -1,31 +1,9 @@
 
-import play.api.PlayException
 import sbt._
 import Keys._
 
 object PlaySlickPlugin extends Plugin
 {
-  // configuration points, like the built in `version`, `libraryDependencies`, or `compile`
-  // by implementing Plugin, these are automatically imported in a user's `build.sbt`
-  /*
-  val newTask = taskKey[Unit]("A new task.")
-  val newSetting = settingKey[String]("A new setting.")
-
-  // a group of settings ready to be added to a Project
-  // to automatically add them, do
-  val newSettings = Seq(
-    newSetting := "test",
-    newTask := println(newSetting.value)
-  )
-*/
-
-  override lazy val settings = Seq(commands += myCommand)
-
-  lazy val myCommand =
-    Command.command("hello") { (state: State) =>
-      println("Hi!")
-      state
-    }
 
   override lazy val projectSettings = Seq(
 
