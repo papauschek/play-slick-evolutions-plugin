@@ -1,3 +1,4 @@
+import com.typesafe.config.Config
 import java.io.File
 import play.api._
 import play.api.db.BoneCPPlugin
@@ -14,14 +15,18 @@ import scala.slick.driver.H2Driver
  *
  *  Parameters: Output directory for the generated code.
  *
- *  Other parameters are taken from this modules conf/application.conf
+ *  Database configuration is taken from conf/application.conf
  */
 object PlaySlickCodeGenerator{
 
-  def generate(outputDir: String) = {
+  /** runs the code generator for the given configuration in confDir and writes files to the given outputDir
+    * confDir is assumed to be the conf folder of a Play app
+    * returns set of generated code files */
+  def generate(outputDir: File, confDir: File) : Set[File] = {
     try
     {
-      run(outputDir)
+      println("Database evolutions have changed. Generating Slick code.")
+      generateAllDatabases(outputDir, confDir)
     }
     catch {
       case ex: PlayException =>
@@ -31,52 +36,72 @@ object PlaySlickCodeGenerator{
     }
   }
 
-  private def run(outputDir: String) = {
+  /** generates source code for all databases in the config */
+  private def generateAllDatabases(outputDir: File, confDir: File) : Set[File] = {
 
-    // start fake application using in-memory database
-    implicit val app = FakeApplication(
+    val dbConfig = Configuration.load(confDir).getConfig("db").getOrElse(Configuration.empty)
+    val databases = dbConfig.subKeys
+
+    // generate source files for each database
+    val generatedFiles = databases.map(database =>
+      generateDatabase(outputDir, database, dbConfig.getConfig(database).getOrElse(Configuration.empty)))
+
+    generatedFiles.toSet
+  }
+
+  /** generates source code for a single database with the given configuration
+    * Configuration parameters used:
+    * - package
+    * - profile
+    * */
+  private def generateDatabase(outputDir: File, databaseName: String, config: Configuration) : File = {
+
+    // read database configuration
+    val outputPackage = config.getString("package").getOrElse("db")
+    val outputContainer = config.getString("container").getOrElse("Tables")
+    val outputProfile = config.getString("profile").getOrElse("scala.slick.driver.JdbcProfile")
+
+    // create fake application using in-memory database
+    val app = FakeApplication(
       path = new File("dbgen").getCanonicalFile,
-      additionalConfiguration = Map(
+      configuration = Map(
         "db.default.url" -> "jdbc:h2:mem:test;MODE=MySQL",
         "db.default.driver" -> "org.h2.Driver"))
 
-    // read database configuration
-    val databaseName = "default" //databaseNames.headOption.getOrElse("")
-    val outputPackage = "db" //app.configuration.getString(s"db.$databaseName.outputPackage").getOrElse("")
-    val outputProfile = "scala.slick.driver.MySQLDriver" //app.configuration.getString(s"db.$databaseName.outputProfile").getOrElse("")
-
-    // apply evolutions from main project
+    // create database plugin
     val dbPlugin = new BoneCPPlugin(app)
     try
     {
-
-      //Evolutions.applyFor(databaseName)
+      // run evolutions against database
       val script = Evolutions.evolutionScript(dbPlugin.api, new File("."), dbPlugin.getClass.getClassLoader, databaseName)
       Evolutions.applyScript(dbPlugin.api, databaseName, script)
 
       // get list of tables for which code will be generated
       // also, we exclude the play evolutions table
-      val db = Database.forDataSource(play.api.db.DB.getDataSource(databaseName))
+      val db = Database.forDataSource(dbPlugin.api.getDataSource(databaseName))
       val excludedTables = Seq("play_evolutions")
       val model = db.withSession {
         implicit session =>
           val tables = H2Driver.getTables.list.filterNot(t => excludedTables contains t.name.name)
-          createModel( tables, H2Driver )
+          createModel(tables, H2Driver)
       }
 
-      // generate slick db code
-      val codegen = new SourceCodeGenerator(model)
-      codegen.writeToFile(
+      // generate slick db code and write to file
+      val codeGen = new SourceCodeGenerator(model)
+      val fileName = outputContainer + ".scala"
+      codeGen.writeToFile(
         profile = outputProfile,
-        folder = outputDir,
+        folder = outputDir.getPath,
         pkg = outputPackage,
-        container = "Tables",
-        fileName = "Tables.scala")
+        container = outputContainer,
+        fileName = fileName)
 
+      // return path of generated file
+      new File(outputDir.getPath + "/" + outputPackage.replace(".","/") + "/" + fileName)
     }
     finally
     {
-      dbPlugin.onStop()
+      dbPlugin.onStop() // cleanup database connections
     }
 
   }
@@ -87,12 +112,14 @@ object PlaySlickCodeGenerator{
 case class FakeApplication(
                             override val path: java.io.File = new java.io.File("."),
                             override val classloader : ClassLoader = classOf[FakeApplication].getClassLoader,
-                            val additionalConfiguration: Map[String, _ <: Any]) extends {
+                            override val configuration: Map[String, _ <: Any]) extends {
   override val sources = None
   override val mode = play.api.Mode.Dev
 } with Application with WithDefaultConfiguration with WithDefaultGlobal with WithDefaultPlugins {
 
+  /*
   override def configuration =
     super.configuration ++ play.api.Configuration.from(additionalConfiguration)
+*/
 
 }
