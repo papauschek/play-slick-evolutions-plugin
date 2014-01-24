@@ -33,6 +33,7 @@ libraryDependencies ++= Seq(
   ...
   "com.github.tototoshi" %% "slick-joda-mapper" % "1.0.0"
 )
+```
 
 Configure the database in your `application.conf`:
 ```
