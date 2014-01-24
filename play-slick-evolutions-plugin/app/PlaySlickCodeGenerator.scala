@@ -43,8 +43,8 @@ object PlaySlickCodeGenerator{
     val databases = dbConfig.subKeys
 
     // generate source files for each database
-    val generatedFiles = databases.map(database =>
-      generateDatabase(outputDir, database, dbConfig.getConfig(database).getOrElse(Configuration.empty)))
+    val generatedFiles = databases.flatMap(database =>
+      generateDatabase(outputDir, database, dbConfig.getConfig(database + ".generator").getOrElse(Configuration.empty)))
 
     generatedFiles.toSet
   }
@@ -53,51 +53,67 @@ object PlaySlickCodeGenerator{
     * Configuration parameters used:
     * - package
     * - profile
-    * */
-  private def generateDatabase(outputDir: File, databaseName: String, config: Configuration) : File = {
+    * - container
+    *
+    * Returns none if no evolutions are configured for this database */
+  private def generateDatabase(outputDir: File, databaseName: String, config: Configuration) : Option[File] = {
 
     // read database configuration
+    val defaultContainer = if (databaseName == "default") "Tables" else s"${databaseName}Tables"
     val outputPackage = config.getString("package").getOrElse("db")
-    val outputContainer = config.getString("container").getOrElse("Tables")
+    val outputContainer = config.getString("container").getOrElse(defaultContainer)
     val outputProfile = config.getString("profile").getOrElse("scala.slick.driver.JdbcProfile")
+
+    // config for generator database
+    val driver = config.getString("driver").getOrElse("org.h2.Driver")
+    val maybeMode = config.getString("mode")
+    val baseUrl = config.getString("url").getOrElse("jdbc:h2:mem:generator")
+    val url = Seq(Some(baseUrl), maybeMode).flatten.mkString(";MODE=")
 
     // create fake application using in-memory database
     val app = FakeApplication(
       path = new File("dbgen").getCanonicalFile,
       configuration = Map(
-        "db.default.url" -> "jdbc:h2:mem:test;MODE=MySQL",
-        "db.default.driver" -> "org.h2.Driver"))
+        "db.default.url" -> url,
+        "db.default.driver" -> driver))
 
     // create database plugin
     val dbPlugin = new BoneCPPlugin(app)
     try
     {
-      // run evolutions against database
+      // check if evolutions exist
       val script = Evolutions.evolutionScript(dbPlugin.api, new File("."), dbPlugin.getClass.getClassLoader, databaseName)
-      Evolutions.applyScript(dbPlugin.api, databaseName, script)
 
-      // get list of tables for which code will be generated
-      // also, we exclude the play evolutions table
-      val db = Database.forDataSource(dbPlugin.api.getDataSource(databaseName))
-      val excludedTables = Seq("play_evolutions")
-      val model = db.withSession {
-        implicit session =>
-          val tables = H2Driver.getTables.list.filterNot(t => excludedTables contains t.name.name)
-          createModel(tables, H2Driver)
+      if (script.size == 0)
+        None // no evolutions found, skip code generation
+      else
+      {
+        // run evolutions against database
+        Evolutions.applyScript(dbPlugin.api, databaseName, script)
+
+        // get list of tables for which code will be generated
+        // also, we exclude the play evolutions table
+        val db = Database.forDataSource(dbPlugin.api.getDataSource(databaseName))
+        val excludedTables = Seq("play_evolutions")
+        val model = db.withSession {
+          implicit session =>
+            val tables = H2Driver.getTables.list.filterNot(t => excludedTables contains t.name.name)
+            createModel(tables, H2Driver)
+        }
+
+        // generate slick db code and write to file
+        val codeGen = new SourceCodeGenerator(model)
+        val fileName = outputContainer + ".scala"
+        codeGen.writeToFile(
+          profile = outputProfile,
+          folder = outputDir.getPath,
+          pkg = outputPackage,
+          container = outputContainer,
+          fileName = fileName)
+
+        // return path of generated file
+        Some(new File(outputDir.getPath + "/" + outputPackage.replace(".","/") + "/" + fileName))
       }
-
-      // generate slick db code and write to file
-      val codeGen = new SourceCodeGenerator(model)
-      val fileName = outputContainer + ".scala"
-      codeGen.writeToFile(
-        profile = outputProfile,
-        folder = outputDir.getPath,
-        pkg = outputPackage,
-        container = outputContainer,
-        fileName = fileName)
-
-      // return path of generated file
-      new File(outputDir.getPath + "/" + outputPackage.replace(".","/") + "/" + fileName)
     }
     finally
     {
