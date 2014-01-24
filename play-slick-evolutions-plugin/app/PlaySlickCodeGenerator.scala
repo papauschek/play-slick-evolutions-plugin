@@ -8,6 +8,7 @@ import scala.slick.model.codegen.SourceCodeGenerator
 import scala.slick.jdbc.meta.{MTable, createModel}
 import scala.slick.driver.H2Driver.simple._
 import scala.slick.driver.H2Driver
+import scala.slick.model.Model
 
 /**
  *  This code generator runs Play Framework Evolutions against an in-memory database
@@ -80,6 +81,10 @@ object PlaySlickCodeGenerator{
         s"For example, if you're using MySQL, add\ndb.${databaseName}.generator.profile=scala.slick.driver.MySQLDriver\nto your application.conf")
     }
 
+    // JodaTime integration switch
+    val useJodaTime = config.getBoolean("enableJodaTime").getOrElse(true)
+    val dbType = outputProfile.replaceAllLiterally("scala.slick.driver.", "").replaceAllLiterally("Driver", "")
+
     // config for generator database
     val driver = config.getString("driver").getOrElse("org.h2.Driver")
     val maybeMode = config.getString("mode")
@@ -120,7 +125,7 @@ object PlaySlickCodeGenerator{
         }
 
         // generate slick db code and write to file
-        val codeGen = new SourceCodeGenerator(model)
+        val codeGen = new PlaySlickCodeGenerator(model, dbType, useJodaTime)
         val fileName = outputContainer + ".scala"
         codeGen.writeToFile(
           profile = outputProfile,
@@ -157,5 +162,20 @@ case class FakeApplication(override val path: java.io.File = new java.io.File(".
 } with Application with WithDefaultConfiguration with WithDefaultGlobal with WithDefaultPlugins {
 
   override def configuration = play.api.Configuration.from(config)
+
+}
+
+/** a source code generator that integrates jodatime with slick */
+class PlaySlickCodeGenerator(model: Model, dbType: String, useJodaTime: Boolean) extends SourceCodeGenerator(model) {
+
+  override def code = {
+    val builder = new StringBuilder
+
+    if (useJodaTime)
+      builder.append(s"import com.github.tototoshi.slick.${dbType}JodaSupport._\n")
+
+    builder.append(super.code)
+    builder.toString
+  }
 
 }
