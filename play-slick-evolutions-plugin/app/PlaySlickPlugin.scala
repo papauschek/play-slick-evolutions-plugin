@@ -22,8 +22,8 @@ object PlaySlickPlugin extends Plugin
       (inFiles: Set[File]) => PlaySlickCodeGenerator.generate(sourceManagedDir, confDir)
     }
 
-    // we're monitoring file changes in the conf/evolutions folder
-    val evolutions = recursiveListFiles(confDir / "evolutions")
+    // we're monitoring file changes in the conf folder
+    val evolutions = recursiveListFiles(confDir)
     cachedEvolutionsGenerator(evolutions.toSet).toSeq
 
     // Uncomment to run generator every time (for testing)

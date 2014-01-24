@@ -22,3 +22,26 @@ How to use
   * `db.default.generator.mode` Optional: the compatibility mode that H2 should use for reading your evolutions (e.g. `MySQL`)
 
 
+Enable JodaTime support
+-----------------------
+
+Want to use JodaTime instead of java.sql.Timestamp?
+
+Add Slick-JodaTime mapper to your dependencies in your `build.sbt`:
+```
+libraryDependencies ++= Seq(
+  ...
+  "com.github.tototoshi" %% "slick-joda-mapper" % "1.0.0"
+)
+
+Configure the database in your `application.conf`:
+```
+db.default.generator.enableJodaTime = true
+```
+
+Make sure you import the implicits whenever you query against JodaTime values:
+
+```
+import com.github.tototoshi.slick.MySQLJodaSupport._
+```
+(replace MySQL with your database driver)

@@ -54,6 +54,7 @@ object PlaySlickCodeGenerator{
 
   /** generates source code for a single database with the given configuration
     * Configuration parameters used:
+    * - enableJodaTime
     * - package (default: "db")
     * - container (default: "Tables", prefixed with database name when using multiple dbs)
     * - profile (required: the slick database profile used for this db)
@@ -79,7 +80,7 @@ object PlaySlickCodeGenerator{
     }
 
     // JodaTime integration switch
-    val useJodaTime = config.getBoolean("enableJodaTime").getOrElse(true)
+    val useJodaTime = config.getBoolean("enableJodaTime").getOrElse(false)
     val dbType = outputProfile.replaceAllLiterally("scala.slick.driver.", "").replaceAllLiterally("Driver", "")
 
     // config for generator database
@@ -117,7 +118,6 @@ object PlaySlickCodeGenerator{
           implicit session =>
             val tables = H2Driver.getTables.list.filterNot(table => excludedTables.exists(
               excluded => tableEquals(table, excluded)))
-            println(tables)
             createModel(tables, H2Driver)
         }
 
@@ -165,6 +165,7 @@ case class FakeApplication(override val path: java.io.File = new java.io.File(".
 /** a source code generator that integrates jodatime with slick */
 class PlaySlickCodeGenerator(model: Model, dbType: String, useJodaTime: Boolean) extends SourceCodeGenerator(model) {
 
+  /** import jodatime if needed */
   override def code = {
     val builder = new StringBuilder
 
@@ -173,6 +174,21 @@ class PlaySlickCodeGenerator(model: Model, dbType: String, useJodaTime: Boolean)
 
     builder.append(super.code)
     builder.toString
+  }
+
+  // override generator responsible for tables
+  override def Table = new Table(_) {
+    table =>
+
+    override def Column = new Column(_){
+
+      /** use JodaTime instead of Timestamp */
+      override def rawType =
+        if (useJodaTime && model.tpe == "java.sql.Timestamp")
+          "org.joda.time.DateTime" else super.rawType
+
+    }
+
   }
 
 }

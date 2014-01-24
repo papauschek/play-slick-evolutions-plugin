@@ -8,11 +8,12 @@ CREATE TABLE User (
     password varchar(255) NOT NULL,
     fullname varchar(255) NOT NULL,
     isAdmin boolean NOT NULL,
+    createDate DATETIME NOT NULL,
     PRIMARY KEY (id)
 );
 
-INSERT INTO User (email, password, fullname, isAdmin)
-    VALUES ('test@test.com', 'pw', 'name', true);
+INSERT INTO User (email, password, fullname, isAdmin, createDate)
+    VALUES ('test@test.com', 'pw', 'name', true, NOW());
  
 # --- !Downs
  

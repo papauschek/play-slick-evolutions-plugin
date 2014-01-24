@@ -4,6 +4,8 @@ import db.Tables._
 import slick.driver.MySQLDriver.simple._
 import play.api.mvc.{Controller, Action}
 import play.api.Play.current
+import org.joda.time.DateTime
+import com.github.tototoshi.slick.MySQLJodaSupport._
 
 object Application extends Controller {
 
@@ -11,7 +13,8 @@ object Application extends Controller {
     DB {
       implicit session => {
 
-        val users = User.list
+        val now = DateTime.now().minusWeeks(1)
+        val users = User.filter(_.createdate > now).list
 
         Ok(views.html.index(users.toString))
       }
