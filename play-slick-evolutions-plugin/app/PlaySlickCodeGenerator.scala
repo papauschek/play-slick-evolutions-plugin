@@ -1,4 +1,4 @@
-import com.typesafe.config.Config
+import com.typesafe.config.{ConfigFactory, Config}
 import java.io.File
 import play.api._
 import play.api.db.BoneCPPlugin
@@ -25,7 +25,7 @@ object PlaySlickCodeGenerator{
   def generate(outputDir: File, confDir: File) : Set[File] = {
     try
     {
-      println("Database evolutions have changed. Generating Slick code.")
+      println("Database evolutions have changed.")
       generateAllDatabases(outputDir, confDir)
     }
     catch {
@@ -39,8 +39,13 @@ object PlaySlickCodeGenerator{
   /** generates source code for all databases in the config */
   private def generateAllDatabases(outputDir: File, confDir: File) : Set[File] = {
 
-    val dbConfig = Configuration.load(confDir).getConfig("db").getOrElse(Configuration.empty)
+    val appConfigFile = new File(confDir.getPath + "/application.conf")
+    val appConfig = Configuration(ConfigFactory.parseFileAnySyntax(appConfigFile))
+    val dbConfig = appConfig.getConfig("db").getOrElse(Configuration.empty)
     val databases = dbConfig.subKeys
+
+    println(dbConfig.entrySet.toString())
+    println(appConfigFile.getAbsolutePath)
 
     // generate source files for each database
     val generatedFiles = databases.flatMap(database =>
@@ -58,11 +63,19 @@ object PlaySlickCodeGenerator{
     * Returns none if no evolutions are configured for this database */
   private def generateDatabase(outputDir: File, databaseName: String, config: Configuration) : Option[File] = {
 
-    // read database configuration
+    println("Generating slick code for '" + databaseName + "' ...")
+
+    // read generator configuration
     val defaultContainer = if (databaseName == "default") "Tables" else s"${databaseName}Tables"
     val outputPackage = config.getString("package").getOrElse("db")
     val outputContainer = config.getString("container").getOrElse(defaultContainer)
-    val outputProfile = config.getString("profile").getOrElse("scala.slick.driver.JdbcProfile")
+
+    // expect output profile
+    val outputProfile = config.getString("profile") match {
+      case Some(profile) => profile
+      case None => throw new PlayException("Please specify an output profile for the Slick Code Generator",
+        s"For example, if you're using MySQL, add\ndb.${databaseName}.generator.profile=scala.slick.driver.MySQLDriver\nto your application.conf")
+    }
 
     // config for generator database
     val driver = config.getString("driver").getOrElse("org.h2.Driver")
@@ -73,9 +86,9 @@ object PlaySlickCodeGenerator{
     // create fake application using in-memory database
     val app = FakeApplication(
       path = new File("dbgen").getCanonicalFile,
-      configuration = Map(
-        "db.default.url" -> url,
-        "db.default.driver" -> driver))
+      config = Map(
+        s"db.${databaseName}.url" -> url,
+        s"db.${databaseName}.driver" -> driver))
 
     // create database plugin
     val dbPlugin = new BoneCPPlugin(app)
@@ -125,17 +138,13 @@ object PlaySlickCodeGenerator{
 }
 
 /** Fake application needed for running evolutions outside normal Play app */
-case class FakeApplication(
-                            override val path: java.io.File = new java.io.File("."),
-                            override val classloader : ClassLoader = classOf[FakeApplication].getClassLoader,
-                            override val configuration: Map[String, _ <: Any]) extends {
+case class FakeApplication(override val path: java.io.File = new java.io.File("."),
+                           override val classloader : ClassLoader = classOf[FakeApplication].getClassLoader,
+                           private val config: Map[String, _ <: Any]) extends {
   override val sources = None
   override val mode = play.api.Mode.Dev
 } with Application with WithDefaultConfiguration with WithDefaultGlobal with WithDefaultPlugins {
 
-  /*
-  override def configuration =
-    super.configuration ++ play.api.Configuration.from(additionalConfiguration)
-*/
+  override def configuration = play.api.Configuration.from(config)
 
 }

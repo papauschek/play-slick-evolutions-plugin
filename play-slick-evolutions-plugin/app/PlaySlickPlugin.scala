@@ -19,12 +19,14 @@ object PlaySlickPlugin extends Plugin
 
     // create a cached generator that runs slick code generation only when evolution files have changed
     val cachedEvolutionsGenerator = FileFunction.cached(baseDir / "target" / "slick-code-cache", FilesInfo.lastModified, FilesInfo.exists) {
-      (inFiles: Set[File]) => PlaySlickCodeGenerator.generate(sourceManagedDir, baseDir)
+      (inFiles: Set[File]) => PlaySlickCodeGenerator.generate(sourceManagedDir, confDir)
     }
 
     // we're monitoring file changes in the conf/evolutions folder
     val evolutions = recursiveListFiles(confDir / "evolutions")
-    cachedEvolutionsGenerator(evolutions.toSet).toSeq
+    //cachedEvolutionsGenerator(evolutions.toSet).toSeq
+
+    PlaySlickCodeGenerator.generate(sourceManagedDir, confDir).toSeq
   }
 
   // get a list of all files in directory, recursively
