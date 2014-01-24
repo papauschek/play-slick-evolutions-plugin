@@ -44,9 +44,6 @@ object PlaySlickCodeGenerator{
     val dbConfig = appConfig.getConfig("db").getOrElse(Configuration.empty)
     val databases = dbConfig.subKeys
 
-    println(dbConfig.entrySet.toString())
-    println(appConfigFile.getAbsolutePath)
-
     // generate source files for each database
     val generatedFiles = databases.flatMap(database =>
       generateDatabase(outputDir, database, dbConfig.getConfig(database + ".generator").getOrElse(Configuration.empty)))
