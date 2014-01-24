@@ -24,9 +24,10 @@ object PlaySlickPlugin extends Plugin
 
     // we're monitoring file changes in the conf/evolutions folder
     val evolutions = recursiveListFiles(confDir / "evolutions")
-    //cachedEvolutionsGenerator(evolutions.toSet).toSeq
+    cachedEvolutionsGenerator(evolutions.toSet).toSeq
 
-    PlaySlickCodeGenerator.generate(sourceManagedDir, confDir).toSeq
+    // Uncomment to run generator every time (for testing)
+    //PlaySlickCodeGenerator.generate(sourceManagedDir, confDir).toSeq
   }
 
   // get a list of all files in directory, recursively
