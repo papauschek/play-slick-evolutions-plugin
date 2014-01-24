@@ -1,7 +1,8 @@
 # Users schema
  
 # --- !Ups
- 
+
+
 CREATE TABLE UserRight (
     id INT NOT NULL AUTO_INCREMENT,
     email varchar(255) NOT NULL,

@@ -5,7 +5,7 @@ import play.api.db.BoneCPPlugin
 import play.api.db.evolutions.Evolutions
 import play.api.Application
 import scala.slick.model.codegen.SourceCodeGenerator
-import scala.slick.jdbc.meta.createModel
+import scala.slick.jdbc.meta.{MTable, createModel}
 import scala.slick.driver.H2Driver.simple._
 import scala.slick.driver.H2Driver
 
@@ -56,9 +56,12 @@ object PlaySlickCodeGenerator{
 
   /** generates source code for a single database with the given configuration
     * Configuration parameters used:
-    * - package
-    * - profile
-    * - container
+    * - package (default: "db")
+    * - container (default: "Tables", prefixed with database name when using multiple dbs)
+    * - profile (required: the slick database profile used for this db)
+    * - mode (H2 compatibility mode)
+    * - driver (database driver of the code generator, should not be changed)
+    * - url (database url of the code generator database, should not be changed)
     *
     * Returns none if no evolutions are configured for this database */
   private def generateDatabase(outputDir: File, databaseName: String, config: Configuration) : Option[File] = {
@@ -110,7 +113,9 @@ object PlaySlickCodeGenerator{
         val excludedTables = Seq("play_evolutions")
         val model = db.withSession {
           implicit session =>
-            val tables = H2Driver.getTables.list.filterNot(t => excludedTables contains t.name.name)
+            val tables = H2Driver.getTables.list.filterNot(table => excludedTables.exists(
+              excluded => tableEquals(table, excluded)))
+            println(tables)
             createModel(tables, H2Driver)
         }
 
@@ -133,6 +138,12 @@ object PlaySlickCodeGenerator{
       dbPlugin.onStop() // cleanup database connections
     }
 
+  }
+
+  /** check if the given table model has the given name */
+  private def tableEquals(table: MTable, name: String) = {
+    val tableName = table.name.name
+    tableName.equalsIgnoreCase(name)
   }
 
 }
