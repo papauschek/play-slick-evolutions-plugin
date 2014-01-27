@@ -14,13 +14,21 @@ object Application extends Controller {
       implicit session => {
 
         val now = DateTime.now().minusWeeks(1)
-        val users = User.filter(_.createdate > now).list
+        //val users = User.filter(_.text > now).list
 
-        Ok(views.html.index(users.toString))
+        case class test(email: Option[String], number: Int)
+
+        val query = User leftJoin User2
+        val maybe = query.map { case (u, u2) => (u.id, u.email) }
+        val grouped = maybe.groupBy { case (id, email) => (id, email) }
+        val users = grouped.map { case ((id, email), rows) => (email, rows.length) }
+        val output = users.map(_ <> (test.tupled, test.unapply _))
+        val list = output.list
+
+        Ok(views.html.index(list.toString, output.selectStatement))
       }
     }
   }
-
 }
 
 object DB {

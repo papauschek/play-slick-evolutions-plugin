@@ -7,6 +7,8 @@ resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/release
 // Use the Play sbt plugin for Play projects
 addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.2.1")
 
+addSbtPlugin("com.jamesward" %% "play-auto-refresh" % "0.0.7")
+
 lazy val root = project.in(file(".")).dependsOn(playSlickPlugin)
 
 lazy val playSlickPlugin = file(new File("../play-slick-evolutions-plugin").getAbsolutePath)
